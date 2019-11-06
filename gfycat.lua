@@ -147,7 +147,14 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       if data["gfyItem"] ~= nil and status_code == 200 then
         io.stdout:write("Found gfycat!\n")
         io.stdout:flush()
-        discovered[string.match(url, "([a-z]+)$")] = true
+print(string.match(url, "([a-z]+)$") .. ":"
+                   .. data["gfyItem"]["views"] .. ":"
+                   .. data["gfyItem"]["createDate"] .. ":"
+                   .. data["gfyItem"]["userName"])
+        discovered[string.match(url, "([a-z]+)$") .. ":"
+                   .. data["gfyItem"]["views"] .. ":"
+                   .. data["gfyItem"]["createDate"] .. ":"
+                   .. data["gfyItem"]["userName"]] = true
       else
         io.stdout:write("Could not get API data.\n")
         io.stdout:flush()
@@ -253,8 +260,8 @@ end
 
 wget.callbacks.finish = function(start_time, end_time, wall_time, numurls, total_downloaded_bytes, total_download_time)
   local file = io.open(item_dir..'/'..warc_file_base..'_data.txt', 'w')
-  for identifier, _ in pairs(discovered) do
-    file:write("gfy:" .. identifier .. "\n")
+  for gfy, _ in pairs(discovered) do
+    file:write(gfy .. "\n")
   end
   file:close()
 end
