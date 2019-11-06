@@ -69,8 +69,7 @@ wget.callbacks.download_child_p = function(urlpos, parent, depth, start_url_pars
   local url = urlpos["url"]["url"]
   local html = urlpos["link_expect_html"]
 
-  if string.match(url, "[<>\\%*%$;%^%[%],%(%){}\"]")
-      or string.match(url, "^https?://b%.scorecardresearch%.com/") then
+  if string.match(url, "[<>\\%*%$;%^%[%],%(%){}\"]") then
     return false
   end
 
