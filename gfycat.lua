@@ -147,10 +147,12 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       if data["gfyItem"] ~= nil and status_code == 200 then
         io.stdout:write("Found gfycat!\n")
         io.stdout:flush()
-        discovered[string.match(url, "([a-z]+)$") .. ":"
+        discovered[   data["gfyItem"]["gfyName"] .. ":"
                    .. data["gfyItem"]["views"] .. ":"
                    .. data["gfyItem"]["createDate"] .. ":"
-                   .. data["gfyItem"]["userName"]] = true
+                   .. data["gfyItem"]["userName"] .. ":"
+                   .. data["gfyItem"]["gfyNumber"]
+                   ] = true
       else
         io.stdout:write("Could not get API data.\n")
         io.stdout:flush()
