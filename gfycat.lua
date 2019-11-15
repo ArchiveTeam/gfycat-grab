@@ -56,7 +56,7 @@ allowed = function(url, parenturl)
     tested[s] = tested[s] + 1
   end
 
-  for s in string.gmatch(url, "([a-z]+)") do
+  for s in string.gmatch(string.lower(url), "([a-z]+)") do
     if ids[s] then
       return true
     end
@@ -73,11 +73,11 @@ wget.callbacks.download_child_p = function(urlpos, parent, depth, start_url_pars
     return false
   end
 
-  if (downloaded[url] ~= true and addedtolist[url] ~= true)
+  --[[if (downloaded[url] ~= true and addedtolist[url] ~= true)
       and (allowed(url, parent["url"]) or html == 0) then
     addedtolist[url] = true
     return true
-  end
+  end]]
   
   return false
 end
@@ -138,7 +138,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
 
   if allowed(url, nil) then
     html = read_file(file)
-    if item_type == "disco"
+    --[[if item_type == "disco"
         and string.match(url, "^https?://api%.gfycat%.com/v1/gfycats/[a-z]+$") then
       data = load_json_file(html)
       if data["errorMessage"] ~= nil and status_code == 404 then
@@ -150,13 +150,25 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
         discovered[string.match(url, "([a-z]+)$") .. ":"
                    .. data["gfyItem"]["views"] .. ":"
                    .. data["gfyItem"]["createDate"] .. ":"
-                   .. data["gfyItem"]["userName"]] = true
+                   .. data["gfyItem"]["userName"] ] = true
       else
         io.stdout:write("Could not get API data.\n")
         io.stdout:flush()
-      end
+      end]]
+    if string.match(url, "^https?://api%.gfycat%.com/v1/gfycats/[a-z]+$") then
+      data = load_json_file(html)
+      check("https://gfycat.com/" .. data["gfyItem"]["gfyId"])
+      check(data["gfyItem"]["webmUrl"])
+      check(data["gfyItem"]["miniUrl"])
+      check(data["gfyItem"]["miniPosterUrl"])
+      check(data["gfyItem"]["posterUrl"])
+      return urls
+    elseif string.match(url, "^https?://[^/]*gfycat%.com/[a-zA-Z0-9%-]+$") then
+      check(string.match(html, 'href="(https?://[^/]*gfycat%.com/amp/[^"]+)"'))
+      check(string.match(html, 'href="(https?://api%.gfycat%.com/v1/oembed%?[^"]+)"'))
+      return urls
     end
-    for newurl in string.gmatch(string.gsub(html, "&quot;", '"'), '([^"]+)') do
+    --[[for newurl in string.gmatch(string.gsub(html, "&quot;", '"'), '([^"]+)') do
       checknewurl(newurl)
     end
     for newurl in string.gmatch(string.gsub(html, "&#039;", "'"), "([^']+)") do
@@ -176,7 +188,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     end
     for newurl in string.gmatch(html, ":%s*url%(([^%)]+)%)") do
       checknewurl(newurl)
-    end
+    end]]
   end
 
   return urls

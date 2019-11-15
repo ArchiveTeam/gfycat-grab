@@ -23,6 +23,8 @@ from seesaw.pipeline import Pipeline
 from seesaw.project import Project
 from seesaw.util import find_executable
 
+from tornado import httpclient
+
 if StrictVersion(seesaw.__version__) < StrictVersion('0.8.5'):
     raise Exception('This pipeline needs seesaw version 0.8.5 or higher.')
 
@@ -59,7 +61,7 @@ if not WGET_LUA:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20191107.01'
+VERSION = '20191115.01'
 with open('user-agents', 'r') as f:
     USER_AGENT = random.choice(f.read().splitlines()).strip()
 TRACKER_ID = 'gfycat'
@@ -194,6 +196,8 @@ class WgetArgs(object):
         item['item_type'] = item_type
         item['item_value'] = item_value
 
+        http_client = httpclient.HTTPClient()
+
         if item_type == 'disco':
             prefix = 'https://api.gfycat.com/v1/gfycats/' + item_value
             with open('animals', 'r') as f:
@@ -201,8 +205,21 @@ class WgetArgs(object):
                     if line.startswith('#'):
                         continue
                     wget_args.append(prefix + line.strip())
+        elif item_type == 'list':
+            response = http_client.fetch('https://raw.githubusercontent.com/ArchiveTeam/gfycat-items/lists/list-' + item_value, method='GET')
+            if response.code != 200:
+                raise ValueError('Got bad status code {}.'.format(response.code))
+            for line in response.body.decode('utf-8', 'ignore').splitlines():
+                line = line.strip()
+                if len(line) == 0:
+                    continue
+                wget_args.extend(['--warc-header', 'gfycat-gfy: ' + line])
+                wget_args.extend(['--warc-header', 'gfycat-gfy: ' + line.lower()])
+                wget_args.append('https://api.gfycat.com/v1/gfycats/' + line.lower())
         else:
             raise Exception('Unknown item')
+
+        http_client.close()
 
         if 'bind_address' in globals():
             wget_args.extend(['--bind-address', globals()['bind_address']])
