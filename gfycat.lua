@@ -158,6 +158,11 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     if string.match(url, "^https?://api%.gfycat%.com/v1/gfycats/[a-z]+$") then
       data = load_json_file(html)
       check("https://gfycat.com/" .. data["gfyItem"]["gfyId"])
+      if string.match(data["gfyItem"]["webmUrl"], "^zippy%.") then
+        check("https://" .. data["gfyItem"]["webmUrl"])
+      else
+        check(data["gfyItem"]["webmUrl"])
+      end
       check(data["gfyItem"]["webmUrl"])
       check(data["gfyItem"]["miniUrl"])
       check(data["gfyItem"]["miniPosterUrl"])
