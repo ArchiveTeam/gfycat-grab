@@ -243,8 +243,9 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
     return wget.actions.EXIT
   end
   
-  if status_code >= 500
-      or (status_code >= 400 and status_code ~= 404)
+  if (status_code == 500 and not string.match(url["url"], "^https://api%.gfycat%.com/v1/oembed%?url="))
+      or status_code >= 501
+      or (status_code >= 400 and status_code ~= 404 and status_code <= 499)
       or status_code  == 0 then
     io.stdout:write("Server returned "..http_stat.statcode.." ("..err.."). Sleeping.\n")
     io.stdout:flush()
