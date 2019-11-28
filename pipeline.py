@@ -61,7 +61,7 @@ if not WGET_LUA:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20191128.02'
+VERSION = '20191128.03'
 with open('user-agents', 'r') as f:
     USER_AGENT = random.choice(f.read().splitlines()).strip()
 TRACKER_ID = 'gfycat'
