@@ -163,7 +163,6 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       else
         check(data["gfyItem"]["webmUrl"])
       end
-      check(data["gfyItem"]["webmUrl"])
       check(data["gfyItem"]["miniUrl"])
       check(data["gfyItem"]["miniPosterUrl"])
       check(data["gfyItem"]["posterUrl"])
