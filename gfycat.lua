@@ -29,6 +29,7 @@ local is_initial_url = true
 
 abort_item = function(item)
   abortgrab = true
+  killgrab = true
   if not item then
     item = item_name
   end
@@ -458,6 +459,15 @@ wget.callbacks.write_to_warc = function(url, http_stat)
       retry_url = true
       return false
     end
+  end
+  if http_stat["statcode"] == 403 then
+    local html = read_file(http_stat["local_file"])
+    if not string.match(html, "<h1>403 ERROR</h1>")
+      and not string.match(html, "Request blocked%.") then
+      tries = 10
+    end
+    retry_url = true
+    return false
   end
   if http_stat["statcode"] ~= 200
     and http_stat["statcode"] ~= 301 then
