@@ -565,7 +565,7 @@ wget.callbacks.finish = function(start_time, end_time, wall_time, numurls, total
   end
   file:close()
   for key, data in pairs({
-    ["gfycat-q93gzeh1o8cs4mb3"] = discovered_items,
+    ["gfycat2-q93gzeh1o8cs4mb3"] = discovered_items,
     ["urls-p4ku0cw5pzy9chv9"] = discovered_outlinks
   }) do
     print('queuing for', string.match(key, "^(.+)%-"))
