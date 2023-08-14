@@ -25,6 +25,9 @@ from seesaw.util import find_executable
 
 from tornado import httpclient
 
+import requests
+import zstandard
+
 if StrictVersion(seesaw.__version__) < StrictVersion('0.8.5'):
     raise Exception('This pipeline needs seesaw version 0.8.5 or higher.')
 
@@ -32,28 +35,23 @@ if StrictVersion(seesaw.__version__) < StrictVersion('0.8.5'):
 ###########################################################################
 # Find a useful Wget+Lua executable.
 #
-# WGET_LUA will be set to the first path that
+# WGET_AT will be set to the first path that
 # 1. does not crash with --version, and
 # 2. prints the required version string
-WGET_LUA = find_executable(
-    'Wget+Lua',
+
+WGET_AT = find_executable(
+    'Wget+AT',
     [
-        'GNU Wget 1.14.lua.20130523-9a5c',
-        'GNU Wget 1.14.lua.20160530-955376b'
+        'GNU Wget 1.21.3-at.20230623.01'
     ],
     [
-        './wget-lua',
-        './wget-lua-warrior',
-        './wget-lua-local',
-        '../wget-lua',
-        '../../wget-lua',
-        '/home/warrior/wget-lua',
-        '/usr/bin/wget-lua'
+        './wget-at',
+        '/home/warrior/data/wget-at-gnutls'
     ]
 )
 
-if not WGET_LUA:
-    raise Exception('No usable Wget+Lua found.')
+if not WGET_AT:
+    raise Exception('No usable Wget+At found.')
 
 
 ###########################################################################
@@ -61,11 +59,11 @@ if not WGET_LUA:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20191128.04'
-with open('user-agents', 'r') as f:
-    USER_AGENT = random.choice(f.read().splitlines()).strip()
-TRACKER_ID = 'gfycat'
-TRACKER_HOST = 'tracker.archiveteam.org'
+VERSION = '20230814.01'
+USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/116.0'
+TRACKER_ID = 'gfycat2'
+TRACKER_HOST = 'legacy-api.arpa.li'
+MULTI_ITEM_SIZE = 1
 
 
 ###########################################################################
@@ -87,13 +85,13 @@ class CheckIP(SimpleTask):
             ip_set = set()
 
             ip_set.add(socket.gethostbyname('twitter.com'))
-            ip_set.add(socket.gethostbyname('facebook.com'))
+            #ip_set.add(socket.gethostbyname('facebook.com'))
             ip_set.add(socket.gethostbyname('youtube.com'))
             ip_set.add(socket.gethostbyname('microsoft.com'))
             ip_set.add(socket.gethostbyname('icanhas.cheezburger.com'))
             ip_set.add(socket.gethostbyname('archiveteam.org'))
 
-            if len(ip_set) != 6:
+            if len(ip_set) != 5:
                 item.log_output('Got IP addresses: {0}'.format(ip_set))
                 item.log_output(
                     'Are you behind a firewall/proxy? That is a big no-no!')
@@ -114,7 +112,8 @@ class PrepareDirectories(SimpleTask):
 
     def process(self, item):
         item_name = item['item_name']
-        escaped_item_name = item_name.replace(':', '_').replace('/', '_').replace('~', '_')
+        item_name_hash = hashlib.sha1(item_name.encode('utf8')).hexdigest()
+        escaped_item_name = item_name_hash
         dirname = '/'.join((item['data_dir'], escaped_item_name))
 
         if os.path.isdir(dirname):
@@ -123,10 +122,13 @@ class PrepareDirectories(SimpleTask):
         os.makedirs(dirname)
 
         item['item_dir'] = dirname
-        item['warc_file_base'] = '%s-%s-%s' % (self.warc_prefix, escaped_item_name[:50],
-            time.strftime('%Y%m%d-%H%M%S'))
+        item['warc_file_base'] = '-'.join([
+            self.warc_prefix,
+            item_name_hash,
+            time.strftime('%Y%m%d-%H%M%S')
+        ])
 
-        open('%(item_dir)s/%(warc_file_base)s.warc' % item, 'w').close()
+        open('%(item_dir)s/%(warc_file_base)s.warc.zst' % item, 'w').close()
         open('%(item_dir)s/%(warc_file_base)s_data.txt' % item, 'w').close()
 
 class MoveFiles(SimpleTask):
@@ -134,12 +136,37 @@ class MoveFiles(SimpleTask):
         SimpleTask.__init__(self, 'MoveFiles')
 
     def process(self, item):
-        os.rename('%(item_dir)s/%(warc_file_base)s.warc.gz' % item,
-              '%(data_dir)s/%(warc_file_base)s.warc.gz' % item)
+        os.rename('%(item_dir)s/%(warc_file_base)s.warc.zst' % item,
+              '%(data_dir)s/%(warc_file_base)s.%(dict_project)s.%(dict_id)s.warc.zst' % item)
         os.rename('%(item_dir)s/%(warc_file_base)s_data.txt' % item,
               '%(data_dir)s/%(warc_file_base)s_data.txt' % item)
 
         shutil.rmtree('%(item_dir)s' % item)
+
+
+class SetBadUrls(SimpleTask):
+    def __init__(self):
+        SimpleTask.__init__(self, 'SetBadUrls')
+
+    def process(self, item):
+        item['item_name_original'] = item['item_name']
+        items = item['item_name'].split('\0')
+        items_lower = [s.lower() for s in items]
+        with open('%(item_dir)s/%(warc_file_base)s_bad-items.txt' % item, 'r') as f:
+            for aborted_item in f:
+                aborted_item = aborted_item.strip().lower()
+                index = items_lower.index(aborted_item)
+                item.log_output('Item {} is aborted.'.format(aborted_item))
+                items.pop(index)
+                items_lower.pop(index)
+        item['item_name'] = '\0'.join(items)
+
+
+class MaybeSendDoneToTracker(SendDoneToTracker):
+    def enqueue(self, item):
+        if len(item['item_name']) == 0:
+            return self.complete_item(item)
+        return super(MaybeSendDoneToTracker, self).enqueue(item)
 
 
 def get_hash(filename):
@@ -160,66 +187,110 @@ def stats_id_function(item):
     return d
 
 
+class ZstdDict(object):
+    created = 0
+    data = None
+
+    @classmethod
+    def get_dict(cls):
+        if cls.data is not None and time.time() - cls.created < 1800:
+            return cls.data
+        response = requests.get(
+            'https://legacy-api.arpa.li/dictionary',
+            params={
+                'project': 'gfycat'
+            }
+        )
+        response.raise_for_status()
+        response = response.json()
+        if cls.data is not None and response['id'] == cls.data['id']:
+            cls.created = time.time()
+            return cls.data
+        print('Downloading latest dictionary.')
+        response_dict = requests.get(response['url'])
+        response_dict.raise_for_status()
+        raw_data = response_dict.content
+        if hashlib.sha256(raw_data).hexdigest() != response['sha256']:
+            raise ValueError('Hash of downloaded dictionary does not match.')
+        if raw_data[:4] == b'\x28\xB5\x2F\xFD':
+            raw_data = zstandard.ZstdDecompressor().decompress(raw_data)
+        cls.data = {
+            'id': response['id'],
+            'dict': raw_data
+        }
+        cls.created = time.time()
+        return cls.data
+
+
 class WgetArgs(object):
+    post_chars = string.digits + string.ascii_lowercase
+
+    def int_to_str(self, i):
+        d, m = divmod(i, 36)
+        if d > 0:
+            return self.int_to_str(d) + self.post_chars[m]
+        return self.post_chars[m]
+
     def realize(self, item):
         wget_args = [
-            WGET_LUA,
+            WGET_AT,
             '-U', USER_AGENT,
             '-nv',
-            '--no-cookies',
+            '--host-lookups', 'dns',
+            '--hosts-file', '/dev/null',
+            '--resolvconf-file', '/dev/null',
+            '--dns-servers', '9.9.9.10,149.112.112.10,2620:fe::10,2620:fe::fe:10',
+            '--reject-reserved-subnets',
+            '--load-cookies', 'cookies.txt',
             '--content-on-error',
+            '--no-http-keep-alive',
             '--lua-script', 'gfycat.lua',
             '-o', ItemInterpolation('%(item_dir)s/wget.log'),
             '--no-check-certificate',
             '--output-document', ItemInterpolation('%(item_dir)s/wget.tmp'),
             '--truncate-output',
             '-e', 'robots=off',
-            '--rotate-dns',
             '--recursive', '--level=inf',
             '--no-parent',
             '--page-requisites',
             '--timeout', '30',
+            '--connect-timeout', '1',
             '--tries', 'inf',
             '--domains', 'gfycat.com',
             '--span-hosts',
             '--waitretry', '30',
             '--warc-file', ItemInterpolation('%(item_dir)s/%(warc_file_base)s'),
             '--warc-header', 'operator: Archive Team',
-            '--warc-header', 'gfycat-dld-script-version: ' + VERSION,
-            '--warc-header', ItemInterpolation('gfycat-item: %(item_name)s'),
+            '--warc-header', 'x-wget-at-project-version: ' + VERSION,
+            '--warc-header', 'x-wget-at-project-name: ' + TRACKER_ID,
+            '--warc-dedup-url-agnostic',
+            '--warc-compression-use-zstd',
+            '--warc-zstd-dict-no-include',
+            '--header', 'Accept-Language: en-US;q=0.9, en;q=0.8'
         ]
+        dict_data = ZstdDict.get_dict()
+        with open(os.path.join(item['item_dir'], 'zstdict'), 'wb') as f:
+            f.write(dict_data['dict'])
+        item['dict_id'] = dict_data['id']
+        item['dict_project'] = 'gfycat'
+        wget_args.extend([
+            '--warc-zstd-dict', ItemInterpolation('%(item_dir)s/zstdict'),
+        ])
 
-        item_name = item['item_name']
-        assert ':' in item_name
-        item_type, item_value = item_name.split(':', 1)
+        for item_name in item['item_name'].split('\0'):
+            wget_args.extend(['--warc-header', 'x-wget-at-project-item-name: '+item_name])
+            wget_args.append('item-name://'+item_name)
+            item_type, item_value = item_name.split(':', 1)
+            if item_type == 'gif':
+                wget_args.extend(['--warc-header', 'gfycat-gif: '+item_value])
+                wget_args.append('https://api.gfycat.com/v1/gfycats/'+item_value)
+            elif item_type == 'user':
+                wget_args.extend(['--warc-header', 'gfycat-user: '+item_value])
+                wget_args.append('https://api.gfycat.com/v1/users/'+item_value)
+            else:
+                raise Exception('Unknown item')
 
-        item['item_type'] = item_type
-        item['item_value'] = item_value
-
-        http_client = httpclient.HTTPClient()
-
-        if item_type == 'disco':
-            prefix = 'https://api.gfycat.com/v1/gfycats/' + item_value
-            with open('animals', 'r') as f:
-                for line in f:
-                    if line.startswith('#'):
-                        continue
-                    wget_args.append(prefix + line.strip())
-        elif item_type == 'list':
-            response = http_client.fetch('https://raw.githubusercontent.com/ArchiveTeam/gfycat-items/lists/list-' + item_value, method='GET')
-            if response.code != 200:
-                raise ValueError('Got bad status code {}.'.format(response.code))
-            for line in response.body.decode('utf-8', 'ignore').splitlines():
-                line = line.strip()
-                if len(line) == 0:
-                    continue
-                wget_args.extend(['--warc-header', 'gfycat-gfy: ' + line])
-                wget_args.extend(['--warc-header', 'gfycat-gfy: ' + line.lower()])
-                wget_args.append('https://api.gfycat.com/v1/gfycats/' + line.lower())
-        else:
-            raise Exception('Unknown item')
-
-        http_client.close()
+        item['item_name_newline'] = item['item_name'].replace('\0', '\n')
 
         if 'bind_address' in globals():
             wget_args.extend(['--bind-address', globals()['bind_address']])
@@ -236,40 +307,42 @@ class WgetArgs(object):
 # This will be shown in the warrior management panel. The logo should not
 # be too big. The deadline is optional.
 project = Project(
-    title = 'gfycat',
-    project_html = '''
-    <img class="project-logo" alt="logo" src="https://www.archiveteam.org/images/5/54/Gfycat-logo.png" height="50px"/>
-    <h2>gfycat.com <span class="links"><a href="https://gfycat.com/">Website</a> &middot; <a href="http://tracker.archiveteam.org/gfycat/">Leaderboard</a></span></h2>
+    title=TRACKER_ID,
+    project_html='''
+        <img class="project-logo" alt="Project logo" src="https://wiki.archiveteam.org/images/f/f8/Gfycat-icon.jpg" height="50px" title=""/>
+        <h2>Gfycat <span class="links"><a href="https://gfycat.com/">Website</a> &middot; <a href="http://tracker.archiveteam.org/gfycat2/">Leaderboard</a> &middot; <a href="https://wiki.archiveteam.org/index.php/Gfycat">Wiki</a></span></h2>
+        <p>Archiving Gfycat.</p>
     '''
 )
 
 pipeline = Pipeline(
     CheckIP(),
-    GetItemFromTracker('http://%s/%s' % (TRACKER_HOST, TRACKER_ID), downloader,
-        VERSION),
-    PrepareDirectories(warc_prefix='gfycat'),
+    GetItemFromTracker('http://{}/{}/multi={}/'
+        .format(TRACKER_HOST, TRACKER_ID, MULTI_ITEM_SIZE),
+        downloader, VERSION),
+    PrepareDirectories(warc_prefix=TRACKER_ID),
     WgetDownload(
         WgetArgs(),
         max_tries=2,
         accept_on_exit_code=[0, 4, 8],
         env={
             'item_dir': ItemValue('item_dir'),
-            'item_value': ItemValue('item_value'),
-            'item_type': ItemValue('item_type'),
+            'item_names': ItemValue('item_name_newline'),
             'warc_file_base': ItemValue('warc_file_base'),
         }
     ),
+    SetBadUrls(),
     PrepareStatsForTracker(
         defaults={'downloader': downloader, 'version': VERSION},
         file_groups={
             'data': [
-                ItemInterpolation('%(item_dir)s/%(warc_file_base)s.warc.gz')
+                ItemInterpolation('%(item_dir)s/%(warc_file_base)s.warc.zst')
             ]
         },
         id_function=stats_id_function,
     ),
     MoveFiles(),
-    LimitConcurrent(NumberConfigValue(min=1, max=20, default='2',
+    LimitConcurrent(NumberConfigValue(min=1, max=20, default='20',
         name='shared:rsync_threads', title='Rsync threads',
         description='The maximum number of concurrent uploads.'),
         UploadWithTracker(
@@ -277,7 +350,7 @@ pipeline = Pipeline(
             downloader=downloader,
             version=VERSION,
             files=[
-                ItemInterpolation('%(data_dir)s/%(warc_file_base)s.warc.gz'),
+                ItemInterpolation('%(data_dir)s/%(warc_file_base)s.%(dict_project)s.%(dict_id)s.warc.zst'),
                 ItemInterpolation('%(data_dir)s/%(warc_file_base)s_data.txt')
             ],
             rsync_target_source_path=ItemInterpolation('%(data_dir)s/'),
@@ -291,7 +364,7 @@ pipeline = Pipeline(
             ]
         ),
     ),
-    SendDoneToTracker(
+    MaybeSendDoneToTracker(
         tracker_url='http://%s/%s' % (TRACKER_HOST, TRACKER_ID),
         stats=ItemValue('stats')
     )
