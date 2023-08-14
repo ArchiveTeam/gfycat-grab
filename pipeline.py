@@ -59,7 +59,7 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20230814.06'
+VERSION = '20230814.07'
 USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/116.0'
 TRACKER_ID = 'gfycat2'
 TRACKER_HOST = 'legacy-api.arpa.li'
@@ -277,6 +277,14 @@ class WgetArgs(object):
             '--warc-zstd-dict', ItemInterpolation('%(item_dir)s/zstdict'),
         ])
 
+        if '--concurrent' in sys.argv:
+            concurrency = int(sys.argv[sys.argv.index('--concurrent')+1])
+        else:
+            concurrency = os.getenv('CONCURRENT_ITEMS')
+            if concurrency is None:
+                concurrency = 4
+        item['concurrency'] = str(concurrency)
+
         for item_name in item['item_name'].split('\0'):
             wget_args.extend(['--warc-header', 'x-wget-at-project-item-name: '+item_name])
             wget_args.append('item-name://'+item_name)
@@ -329,6 +337,7 @@ pipeline = Pipeline(
             'item_dir': ItemValue('item_dir'),
             'item_names': ItemValue('item_name_newline'),
             'warc_file_base': ItemValue('warc_file_base'),
+            'concurrency': ItemValue('concurrency')
         }
     ),
     SetBadUrls(),

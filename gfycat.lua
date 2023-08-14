@@ -529,6 +529,12 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
     error("No item name found.")
   end
 
+  if string.match(url["url"], "^https?://gfycat%.com/")
+    or string.match(url["url"], "^https?://www%.gfycat%.com/")
+    or string.match(url["url"], "^https?://api%.gfycat%.com/") then
+    os.execute("sleep " .. tostring(0.5*concurrency))
+  end
+
   if status_code >= 300 and status_code <= 399 then
     local newloc = urlparse.absolute(url["url"], http_stat["newloc"])
     if processed(newloc) or not allowed(newloc, url["url"]) then
