@@ -26,6 +26,8 @@ local ids = {}
 
 local retry_url = false
 local is_initial_url = true
+local has_size_restricted = false
+local has_mp4 = false
 
 abort_item = function(item)
   abortgrab = true
@@ -106,6 +108,8 @@ set_item = function(url)
       abortgrab = false
       tries = 0
       retry_url = false
+      has_size_restricted = false
+      has_mp4 = false
       is_initial_url = true
       item_name = item_name_new
       print("Archiving item " .. item_name)
@@ -131,7 +135,24 @@ allowed = function(url, parenturl)
     or string.match(url, "^https?://www%.facebook%.com/dialog/share%?u=")
     or string.match(url, "^https?://twitter%.com/intent/tweet%?url=")
     or string.match(url, "^https?://www%.reddit%.com/submit%?url=")
-    or string.match(url, "^https?://www%.tumblr%.com/share/link%?url=") then
+    or string.match(url, "^https?://www%.tumblr%.com/share/link%?url=")
+    or string.match(url, "^https?://metrics%.gfycat%.com/pix%.gif%?")
+    or (
+      (has_size_restricted and has_mp4)
+      and (
+        string.match(url, "^https?://[^/]+/[a-zA-Z]+%.gif$")
+        or string.match(url, "^https?://[^/]+/[a-zA-Z]+%.webm$")
+        or string.match(url, "^https?://[^/]+/[a-zA-Z]+%.webp$")
+      )
+    )
+    or (
+      has_size_restricted
+      and (
+        string.match(url, "%-max%-1mb%.gif$")
+        or string.match(url, "%-small%.gif$")
+        or string.match(url, "%-100px%.gif$")
+      )
+    ) then
     return false
   end
 
@@ -372,6 +393,12 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
           discover_item(discovered_items, "discover:" .. category)
         end
         check("https://gfycat.com/" .. item_value)
+        if string.match(html, '%-size_restricted%.gif"') then
+          has_size_restricted = true
+        end
+        if string.match(html, '/[a-zA-Z]+%.mp4"') then
+          has_mp4 = true
+        end
       elseif string.match(url, "/v1/users/") then
         if string.match(url, "/collections[^/]*$") then
           for _, collection in pairs(json["gfyCollections"]) do
