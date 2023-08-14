@@ -118,7 +118,19 @@ allowed = function(url, parenturl)
     return true
   end
 
-  if string.match(url, "/@[^/]+/undefined") then
+  if string.match(url, "/undefined$")
+    or string.match(url, "^https?://[^/]+/ifr/.*collections/")
+    or string.match(url, "^https?://[^/]+/uk/.*collections/")
+    or string.match(url, "^https?://[^/]+/ru/.*collections/")
+    or string.match(url, "^https?://[^/]+/pl/.*collections/")
+    or string.match(url, "^https?://[^/]+/ko/.*collections/")
+    or string.match(url, "^https?://[^/]+/fr/.*collections/")
+    or string.match(url, "^https?://pinterest%.com/pin/create/button/%?url=")
+    or string.match(url, "^https?://vk%.com/share%.php%?url=")
+    or string.match(url, "^https?://www%.facebook%.com/dialog/share%?u=")
+    or string.match(url, "^https?://twitter%.com/intent/tweet%?url=")
+    or string.match(url, "^https?://www%.reddit%.com/submit%?url=")
+    or string.match(url, "^https?://www%.tumblr%.com/share/link%?url=") then
     return false
   end
 
@@ -341,7 +353,9 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
   if allowed(url)
     and status_code < 300
     and not string.match(url, "^https?://thumbs%.gfycat%.com/")
-    and not string.match(url, "^https?://giant%.gfycat%.com/") then
+    and not string.match(url, "^https?://giant%.gfycat%.com/")
+    and not string.match(url, "^https?://fat%.gfycat%.com/")
+    and not string.match(url, "^https?://zippy%.gfycat%.com/") then
     html = read_file(file)
     if string.match(url, "^https?://api%.gfycat%.com/") then
       local json = cjson.decode(html)
@@ -368,6 +382,11 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
               end
             end
           end
+        end
+        local image_url = json["profileImageUrl"]
+        if image_url then
+          ids[image_url] = true
+          check(image_url)
         end
         for _, endpoint in pairs({
           "collections",
@@ -490,7 +509,7 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
     io.stdout:write("Server returned bad response. ")
     io.stdout:flush()
     tries = tries + 1
-    if tries > 5 then
+    if tries > 9 then
       io.stdout:write(" Skipping.\n")
       io.stdout:flush()
       tries = 0
