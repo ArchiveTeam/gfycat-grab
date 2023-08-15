@@ -28,6 +28,8 @@ local retry_url = false
 local is_initial_url = true
 local has_size_restricted = false
 local has_mp4 = false
+local has_mobile_mp4 = false
+local views = 0
 
 abort_item = function(item)
   abortgrab = true
@@ -110,6 +112,8 @@ set_item = function(url)
       retry_url = false
       has_size_restricted = false
       has_mp4 = false
+      has_mobile_mp4 = false
+      views = 0
       is_initial_url = true
       item_name = item_name_new
       print("Archiving item " .. item_name)
@@ -144,6 +148,12 @@ allowed = function(url, parenturl)
         or string.match(url, "^https?://[^/]+/[a-zA-Z]+%.webm$")
         or string.match(url, "^https?://[^/]+/[a-zA-Z]+%.webp$")
       )
+    )
+    or (
+      has_mobile_mp4
+      and has_mp4
+      and views < 3000
+      and string.match(url, "/[a-zA-Z]+%.mp4$")
     )
     or (
       has_size_restricted
@@ -398,6 +408,13 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
         end
         if string.match(html, '/[a-zA-Z]+%.mp4"') then
           has_mp4 = true
+        end
+        if string.match(html, '%-mobile%.mp4"') then
+          has_mobile_mp4 = true
+        end
+        views = json["gfyItem"]["views"]
+        if not views then
+          views = 0
         end
       elseif string.match(url, "/v1/users/") then
         if string.match(url, "/collections[^/]*$") then
