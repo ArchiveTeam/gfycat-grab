@@ -284,6 +284,11 @@ class WgetArgs(object):
             if concurrency is None:
                 concurrency = 4
         item['concurrency'] = str(concurrency)
+        
+        if '--prefer-ipv4' in sys.argv:
+            wget_args.extend(["--prefer-family", "IPv4"])
+        elif '--prefer-ipv6' in sys.argv:
+            wget_args.extend(["--prefer-family", "IPv6"])
 
         for item_name in item['item_name'].split('\0'):
             wget_args.extend(['--warc-header', 'x-wget-at-project-item-name: '+item_name])
