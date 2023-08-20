@@ -152,7 +152,7 @@ allowed = function(url, parenturl)
     or (
       has_mobile_mp4
       and has_mp4
-      and views < 3000
+      --and views < 3000
       and string.match(url, "/[a-zA-Z]+%.mp4$")
     )
     or (
@@ -416,6 +416,10 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
         if not views then
           views = 0
         end
+        --[[if views < 3000 then
+          abort_item()
+          return {}
+        end]]
       elseif string.match(url, "/v1/users/") then
         if string.match(url, "/collections[^/]*$") then
           for _, collection in pairs(json["gfyCollections"]) do
