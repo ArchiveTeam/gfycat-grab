@@ -59,7 +59,7 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20230822.04'
+VERSION = '20230822.05'
 USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/116.0'
 TRACKER_ID = 'gfycat2'
 TRACKER_HOST = 'legacy-api.arpa.li'
@@ -241,6 +241,7 @@ class WgetArgs(object):
             '--resolvconf-file', '/dev/null',
             '--dns-servers', '9.9.9.10,149.112.112.10,2620:fe::10,2620:fe::fe:10',
             '--reject-reserved-subnets',
+            '--prefer-family', ('IPv4' if 'PREFER_IPV4' in os.environ else 'IPv6'),
             '--load-cookies', 'cookies.txt',
             '--content-on-error',
             '--no-http-keep-alive',
@@ -282,13 +283,8 @@ class WgetArgs(object):
         else:
             concurrency = os.getenv('CONCURRENT_ITEMS')
             if concurrency is None:
-                concurrency = 4
+                concurrency = 2
         item['concurrency'] = str(concurrency)
-        
-        if 'PREFER_IPV4' in os.environ:
-            wget_args.extend(["--prefer-family", "IPv4"])
-        else:
-            wget_args.extend(["--prefer-family", "IPv6"])
 
         for item_name in item['item_name'].split('\0'):
             wget_args.extend(['--warc-header', 'x-wget-at-project-item-name: '+item_name])
