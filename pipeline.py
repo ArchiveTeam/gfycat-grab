@@ -59,7 +59,7 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20230822.03'
+VERSION = '20230822.04'
 USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/116.0'
 TRACKER_ID = 'gfycat2'
 TRACKER_HOST = 'legacy-api.arpa.li'
@@ -287,7 +287,7 @@ class WgetArgs(object):
         
         if 'PREFER_IPV4' in os.environ:
             wget_args.extend(["--prefer-family", "IPv4"])
-        elif 'PREFER_IPV6' in os.environ:
+        else:
             wget_args.extend(["--prefer-family", "IPv6"])
 
         for item_name in item['item_name'].split('\0'):
