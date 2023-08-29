@@ -87,7 +87,7 @@ find_item = function(url)
   end
   local type_ = "gif"
   if not value then
-    value = string.match(url, "^https?://api%.gfycat%.com/v1/users/([a-zA-Z0-9]+)$")
+    value = string.match(url, "^https?://api%.gfycat%.com/v1/users/([a-zA-Z0-9_%-]+)$")
     type_ = "user"
   end
   if value then
@@ -134,6 +134,7 @@ allowed = function(url, parenturl)
     or string.match(url, "^https?://[^/]+/pl/")
     or string.match(url, "^https?://[^/]+/ko/")
     or string.match(url, "^https?://[^/]+/fr/")
+    or string.match(url, "^https?://[^/]+/stickers/search/")
     or string.match(url, "^https?://pinterest%.com/pin/create/button/%?url=")
     or string.match(url, "^https?://vk%.com/share%.php%?url=")
     or string.match(url, "^https?://www%.facebook%.com/dialog/share%?u=")
@@ -186,6 +187,7 @@ allowed = function(url, parenturl)
 
   if string.match(url, "^https?://[^/]*gfycat%.com/") then
     for _, pattern in pairs({
+      "([a-zA-Z0-9_%-]+)",
       "([a-zA-Z0-9]+)",
       "([^/%?&]+)"
     }) do
@@ -208,9 +210,10 @@ wget.callbacks.download_child_p = function(urlpos, parent, depth, start_url_pars
   local url = urlpos["url"]["url"]
   local html = urlpos["link_expect_html"]
 
-  if allowed(url, parent["url"]) and (
-    not processed(url)
-  ) and string.match(url, "^https://") and not addedtolist[url] then
+  if allowed(url, parent["url"])
+    and not processed(url)
+    and string.match(url, "^https://")
+    and not addedtolist[url] then
     addedtolist[url] = true
     return true
   end
@@ -433,7 +436,8 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
           end
         end
         local image_url = json["profileImageUrl"]
-        if image_url then
+        if image_url
+          and string.match(image_url, "^https?://[^/]*gfycat%.com/") then
           ids[image_url] = true
           check(image_url)
         end
