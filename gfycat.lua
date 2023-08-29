@@ -87,7 +87,7 @@ find_item = function(url)
   end
   local type_ = "gif"
   if not value then
-    value = string.match(url, "^https?://api%.gfycat%.com/v1/users/([a-zA-Z0-9_%-]+)$")
+    value = string.match(url, "^https?://api%.gfycat%.com/v1/users/([a-zA-Z0-9_%-%.]+)$")
     type_ = "user"
   end
   if value then
@@ -187,7 +187,7 @@ allowed = function(url, parenturl)
 
   if string.match(url, "^https?://[^/]*gfycat%.com/") then
     for _, pattern in pairs({
-      "([a-zA-Z0-9_%-]+)",
+      "([a-zA-Z0-9_%-%.]+)",
       "([a-zA-Z0-9]+)",
       "([^/%?&]+)"
     }) do
