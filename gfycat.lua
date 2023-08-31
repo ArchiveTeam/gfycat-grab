@@ -142,6 +142,7 @@ allowed = function(url, parenturl)
     or string.match(url, "^https?://www%.reddit%.com/submit%?url=")
     or string.match(url, "^https?://www%.tumblr%.com/share/link%?url=")
     or string.match(url, "^https?://metrics%.gfycat%.com/pix%.gif%?")
+    or string.match(url, "^https?://[^/]*redgifs%.com/")
     or (
       (has_size_restricted and has_mp4)
       and (
@@ -185,7 +186,8 @@ allowed = function(url, parenturl)
     end
   end
 
-  if string.match(url, "^https?://[^/]*gfycat%.com/") then
+  if string.match(url, "^https?://[^/]*gfycat%.com/")
+    or string.match(url, "^https?://[^/]*gifdeliverynetwork%.com/") then
     for _, pattern in pairs({
       "([a-zA-Z0-9_%-%.]+)",
       "([a-zA-Z0-9]+)",
@@ -385,6 +387,10 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     end
   end
 
+  if string.match(url, "/v1/gfycats/") then
+    check("https://gfycat.com/" .. item_value)
+  end
+
   if allowed(url)
     and status_code < 300
     and not string.match(url, "^https?://thumbs%.gfycat%.com/")
@@ -461,6 +467,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       html = html .. flatten_json(json)
     end
     html = string.gsub(html, "\\", "")
+    html = string.gsub(html, 'name="keywords"%s+content="https://gfycat.com/[^"]+"%s*/>', "")
     for newurl in string.gmatch(string.gsub(html, "&quot;", '"'), '([^"]+)') do
       checknewurl(newurl)
     end
@@ -514,6 +521,10 @@ wget.callbacks.write_to_warc = function(url, http_stat)
   end
   if http_stat["statcode"] == 403 then
     local html = read_file(http_stat["local_file"])
+    if string.match(html, "<Error><Code>AccessDenied</Code><Message>Access Denied</Message><RequestId>") then
+      retry_url = false
+      return false
+    end
     if not string.match(html, "<h1>403 ERROR</h1>")
       and not string.match(html, "Request blocked%.") then
       tries = 10
@@ -577,13 +588,22 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
     io.stdout:write("Server returned bad response. ")
     io.stdout:flush()
     tries = tries + 1
-    if string.match(url["url"], "^https?://api%.gfycat%.com/v1/gfycats/[a-z]+$")
-      and status_code == 404 then
-      tries = 10
+    local maxtries = 9
+    if status_code == 404 then
+      if string.match(url["url"], "^https?://api%.gfycat%.com/v1/gfycats/[a-z]+$") then
+        tries = maxtries + 10
+      elseif string.match(url["url"], "^https?://[^/]*gifdeliverynetwork%.com/")
+        or string.match(url["url"], "^https?://gfycat%.com/[a-z]+$") then
+        tries = maxtries + 1
+      end
     end
-    if tries > 9 then
+    if tries > maxtries then
       io.stdout:write(" Skipping.\n")
       io.stdout:flush()
+      if tries == maxtries + 10 then
+        tries = 0
+        return wget.actions.NOTHING
+      end
       tries = 0
       abort_item()
       return wget.actions.EXIT
