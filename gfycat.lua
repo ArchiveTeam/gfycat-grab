@@ -533,7 +533,8 @@ wget.callbacks.write_to_warc = function(url, http_stat)
     return false
   end
   if http_stat["statcode"] ~= 200
-    and http_stat["statcode"] ~= 301 then
+    and http_stat["statcode"] ~= 301
+    and http_stat["statcode"] ~= 404 then
     retry_url = true
     return false
   end
@@ -628,7 +629,7 @@ end
 wget.callbacks.finish = function(start_time, end_time, wall_time, numurls, total_downloaded_bytes, total_download_time)
   local function submit_backfeed(items, key)
     local tries = 0
-    local maxtries = 10
+    local maxtries = 5
     while tries < maxtries do
       if killgrab then
         return false
